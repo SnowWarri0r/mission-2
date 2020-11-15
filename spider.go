@@ -40,7 +40,7 @@ func launchQuery(html io.Reader){
 		log.Fatalln(err)
 	}
         dom.Find("div.box.post-box").Each(func(i int, selection *goquery.Selection) {
-        	title:=selection.Find("h2.post-title a").Text()
+        	title:=selection.Find("h2.post-title a").Text()//将数据分类为4种
         	var tags string
         	selection.Find("a.post-meta-tag").Each(func(i int, selection *goquery.Selection) {
 				tags=tags+" "+selection.Text()
@@ -53,20 +53,20 @@ func launchQuery(html io.Reader){
 }
 func main() {
 	s:=&http.Server{
-		Addr: ":8080",
+		Addr: ":8080",//设置服务器映射端口为8080
 	}
 	for i:=1;i<9;i++ {
 		body := getHtml("https://blog.lenconda.top/page/"+strconv.Itoa(i))
 		html := bytes.NewReader(body)
 		launchQuery(html)
 	}
-	f,err:=os.Create("./data/list.txt")
+	f,err:=os.Create("./data/list.txt")//将抓取数据写入文件
 	if err!=nil{
 		log.Fatalln(err)
 	}
 	f.WriteString(data)
 	http.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
-		writer.Header().Set("Content-Type", "text/html;charset=UTF-8")
+		writer.Header().Set("Content-Type", "text/html;charset=UTF-8")//设置数据显示方式为html，编码保存为utf-8
 		fmt.Fprintln(writer,data)
 	})
 	s.ListenAndServe()
