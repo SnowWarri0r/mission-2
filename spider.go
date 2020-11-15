@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/PuerkitoBio/goquery"
+	html2 "html"
 	"io"
 	"io/ioutil"
 	"log"
@@ -11,7 +12,7 @@ import (
 	"os"
 	"strconv"
 )
-
+var data string
 func getHtml(url string) []byte{
 	//建立自定义request
 	client:= &http.Client{}
@@ -33,71 +34,41 @@ func getHtml(url string) []byte{
 	html:=body
 	return html
 }
-func launchQuery(html io.Reader,fTitles *os.File,fTimes *os.File,fTags *os.File,fBriefs *os.File){
+func launchQuery(html io.Reader){
 	dom,err:=goquery.NewDocumentFromReader(html)
 	if err!=nil{
 		log.Fatalln(err)
 	}
-	titles:=dom.Find(".post-title a").Map(func(i int, selection *goquery.Selection) string {
-		return selection.Text()
-	})
-	times:=dom.Find("time[datetime]").Map(func(i int, selection *goquery.Selection) string {
-		return selection.Text()
-	})
-	tags:=dom.Find("a.post-meta-tag").Map(func(i int, selection *goquery.Selection) string {
-		return selection.Text()
-	})
-	briefs:=dom.Find("p.post-excerpt").Map(func(i int, selection *goquery.Selection) string {
-		return  selection.Text()
-	})
-
-	for _,v:=range titles{
-		fTitles.WriteString(v+"\n\n")
-	}
-	for _,v:=range times{
-		fTimes.WriteString(v+"\n\n")
-	}
-	for _,v:=range tags{
-		fTags.WriteString(v+"\n\n")
-	}
-	for _,v:=range briefs{
-		fBriefs.WriteString(v+"\n\n")
-	}
-	fmt.Println(titles)
-	fmt.Println()
-	fmt.Println(times)
-	fmt.Println()
-	fmt.Println(tags)
-	fmt.Println()
-	fmt.Println(briefs)
-	fmt.Println()
+        dom.Find("div.box.post-box").Each(func(i int, selection *goquery.Selection) {
+        	title:=selection.Find("h2.post-title a").Text()
+        	var tags string
+        	selection.Find("a.post-meta-tag").Each(func(i int, selection *goquery.Selection) {
+				tags=tags+" "+selection.Text()
+			})
+        	time:=selection.Find("div.box.post-box time[datetime]").Text()
+        	brief:=selection.Find("div.box.post-box p.post-excerpt").Text()
+        	brief=html2.EscapeString(brief)
+        	data=data+"<h2>"+title+"</h2>\n<p>"+time+"&nbsp;&nbsp;"+tags+"</p>\n<p>"+brief+"</p>\n\n"
+		})
 }
-
 func main() {
-	fTitles,err:=os.Create("./data/title.txt")
-	if err!=nil{
-		log.Fatalln(err)
+	s:=&http.Server{
+		Addr: ":8080",
 	}
-	fTimes,err:=os.Create("./data/times.txt")
-	if err!=nil{
-		log.Fatalln(err)
-	}
-	fTags,err:=os.Create("./data/tags.txt")
-	if err!=nil{
-		log.Fatalln(err)
-	}
-	fBriefs,err:=os.Create("./data/brief.txt")
-	if err!=nil{
-		log.Fatalln(err)
-	}
-	for i:=1;i<8;i++ {
-		fmt.Printf("现在是第%v页内容\n",i)
+	for i:=1;i<9;i++ {
 		body := getHtml("https://blog.lenconda.top/page/"+strconv.Itoa(i))
 		html := bytes.NewReader(body)
-		launchQuery(html,fTitles,fTimes,fTags,fBriefs)
+		launchQuery(html)
 	}
-	defer fTitles.Close()
-	defer fTimes.Close()
-	defer fTags.Close()
-	defer fBriefs.Close()
+	f,err:=os.Create("./data/list.txt")
+	if err!=nil{
+		log.Fatalln(err)
+	}
+	f.WriteString(data)
+	http.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
+		writer.Header().Set("Content-Type", "text/html;charset=UTF-8")
+		fmt.Fprintln(writer,data)
+	})
+	s.ListenAndServe()
+	defer f.Close()
 }
